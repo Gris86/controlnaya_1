@@ -16,7 +16,7 @@ def read_note(filename: str) -> note.Note:
 
 def write_note_to_file(note: note.Note, filename: str):
     with open(os.path.join(os.getcwd(), 'notes', filename), 'w') as f:
-        f.write(json.dumps(note.to_json()))
+        json.dump(note.to_json(), f)
 
 def write_note(note: note.Note):
     "Имя файла автоматически генерируется."
