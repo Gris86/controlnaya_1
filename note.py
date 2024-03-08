@@ -18,11 +18,11 @@ class NoteTimestamp:
         self.day = day
         self.hour = hour
         self.minute = minute
-        self.secound = second
+        self.second = second
     
     @staticmethod
     def from_json(json_string: str):
-        parsed_json = json.parse(json_string)
+        parsed_json = json.loads(json_string)
         return NoteTimestamp(*parsed_json)
 
 class Note:
@@ -49,5 +49,12 @@ class Note:
     
     @staticmethod
     def from_json(json_string: str):
-        parsed_json = json.parse(json_string)
-        return Note(NoteTimestamp.from_json(parsed_json['timestamp']), parsed_json['title'], parsed_json['body'], note_id=uuid.UUID(json_string['note_id']))
+        parsed_json = json.loads(json_string)
+        return Note(
+            NoteTimestamp(*parsed_json['timestamp']),
+            parsed_json['title'],
+            parsed_json['body'],
+            note_id=uuid.UUID(
+                hex=parsed_json['note_id']
+            )
+        )

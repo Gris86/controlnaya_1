@@ -1,4 +1,5 @@
 import os.path
+import json
 
 import note
 
@@ -15,7 +16,7 @@ def read_note(filename: str) -> note.Note:
 
 def write_note_to_file(note: note.Note, filename: str):
     with open(os.path.join(os.getcwd(), 'notes', filename), 'w') as f:
-        f.write(note.to_json())
+        f.write(json.dumps(note.to_json()))
 
 def write_note(note: note.Note):
     "Имя файла автоматически генерируется."
@@ -29,3 +30,9 @@ def get_all_notes() -> list[note.Note]:
     for x in list_note_filenames():
         lst.append(read_note(x))
     return lst
+
+def delete_note(note_id: str):
+    for x in list_note_filenames():
+        x_note = read_note(x)
+        if x_note.note_id.hex == note_id:
+            os.unlink(os.path.join(os.getcwd(), "notes", x))

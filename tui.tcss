@@ -1,0 +1,22 @@
+/*
+    Это не для веб страницы. Это для библиотеки TUI:
+        https://textual.textualize.io/guide/styles/
+*/
+
+.NoteWidget {
+    margin: 1;
+    border: solid white;
+    width: 100%;
+    height: auto;
+    layout: grid;
+    grid-size: 4;
+    grid-columns: auto 1fr auto auto;
+}
+
+.NoteWidget Button {
+    margin-left: 1;
+}
+
+.spacer {
+    width: 1fr;
+}
