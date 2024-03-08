@@ -60,7 +60,7 @@ class EditNote(ModalScreen):
                 self.note.timestamp = notes.NoteTimestamp.current_time()
             utils.write_note(self.note)
             self.note_app.all_notes = utils.get_all_notes()
-            self.post_message(NotesApp.NotesUpdated())
+            self.note_app.post_message(NotesApp.NotesUpdated())
             self.note_app.pop_screen()
 
 class NoteWidget(Widget):
@@ -256,7 +256,7 @@ class NotesApp(App):
     def action_new_note(self) -> None:
         self.push_screen(EditNote(self, notes.Note(notes.NoteTimestamp.current_time(), "", ""), is_creating=True))
 
-    def on_notes_app_notes_updated(self, message):
+    def on_notes_app_notes_updated(self, _):
         self.all_notes = utils.get_all_notes()
         container = self.query_one("#container", ScrollableContainer)
         container.remove_children()
