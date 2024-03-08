@@ -1,5 +1,8 @@
+import textual.command
+import rich.text
 from textual.app import App, ComposeResult
-from textual.containers import ScrollableContainer, Grid
+from textual.containers import ScrollableContainer, Grid, Horizontal, Vertical
+from functools import partial
 from textual.events import Event
 from textual.widgets import Button, Footer, Header, Static, Label, TextArea, Input
 from textual.command import DiscoveryHit, Hit, Hits, Provider, CommandPalette
@@ -102,6 +105,16 @@ class Commands(Provider):
                 "Выйти",
                 self.app.action_quit,
                 "Выходит из приложения",
+            ),
+            (
+                "Поиск заметок по имени",
+                self.app.action_search_by_title,
+                "Запустить поиск заметок по имени"
+            ),
+            (
+                "Поиск заметок по дате и времени",
+                self.app.action_search_by_time,
+                "Запустить поиск заметок по дате и времени"
             )
         )
 
@@ -124,6 +137,82 @@ class Commands(Provider):
                     help=help_text,
                 )
 
+class NotesSearchByNameProvider(Provider):
+    async def discover(self) -> Hits:
+        for note in utils.get_all_notes():
+            yield DiscoveryHit(
+                note.title,
+                partial(self.app.push_screen, EditNote(note_app=self.app, note=note)),
+                help=f"Заметка создана {note.timestamp.day}.{note.timestamp.month}.{note.timestamp.year} в {note.timestamp.hour}:{note.timestamp.minute}:{note.timestamp.second}",
+            )
+    
+    async def search(self, query: str) -> Hits:
+        matcher = self.matcher(query)
+        for note in utils.get_all_notes():
+            if (match := matcher.match(note.title)) > 0:
+                yield Hit(
+                    match,
+                    matcher.highlight(note.title),
+                    partial(self.app.push_screen, EditNote(note_app=self.app, note=note)),
+                    help=f"Заметка создана {note.timestamp.day}.{note.timestamp.month}.{note.timestamp.year} в {note.timestamp.hour}:{note.timestamp.minute}:{note.timestamp.second}",
+                )
+
+class NotesSearchByDateProvider(Provider):
+    async def discover(self) -> Hits:
+        for note in utils.get_all_notes():
+            yield DiscoveryHit(
+                note.title,
+                partial(self.app.push_screen, EditNote(note_app=self.app, note=note)),
+                help=f"Дата и время создания: {self.stringify_timestamp(note.timestamp)}",
+            )
+
+    @staticmethod
+    def stringify_timestamp(timestamp: notes.NoteTimestamp):
+        return f"{timestamp.day}.{timestamp.month}.{timestamp.year} {timestamp.hour}:{timestamp.minute}:{timestamp.second}"
+
+    async def search(self, query: str) -> Hits:
+        matcher = self.matcher(query)
+        for note in utils.get_all_notes():
+            stringified_timestamp = self.stringify_timestamp(note.timestamp)
+            if (match := matcher.match(stringified_timestamp)) > 0:
+                yield Hit(
+                    match,
+                    note.title,
+                    partial(self.app.push_screen, EditNote(note_app=self.app, note=note)),
+                    help=f"Дата и время создания: {self.stringify_timestamp(note.timestamp)}",
+                )
+
+class NotesSearchByName(CommandPalette):
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            with Horizontal(id="--input"):
+                yield textual.command.SearchIcon()
+                yield textual.command.CommandInput(placeholder="Поиск по названию заметок...")
+                if not self.run_on_select:
+                    yield Button("\u25b6")
+            with Vertical(id="--results"):
+                yield textual.command.CommandList()
+                yield textual.command.LoadingIndicator()
+
+    @property
+    def _provider_classes(self) -> set[type[Provider]]:
+        return {NotesSearchByNameProvider}
+
+class NotesSearchByDate(NotesSearchByName):
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            with Horizontal(id="--input"):
+                yield textual.command.SearchIcon()
+                yield textual.command.CommandInput(placeholder=f"Формат времени: {NotesSearchByDateProvider.stringify_timestamp(notes.NoteTimestamp.current_time())}")
+                if not self.run_on_select:
+                    yield Button("\u25b6")
+            with Vertical(id="--results"):
+                yield textual.command.CommandList()
+                yield textual.command.LoadingIndicator()
+
+    @property
+    def _provider_classes(self) -> set[type[Provider]]:
+        return {NotesSearchByDateProvider}
 
 class NotesApp(App):
     class NotesUpdated(Message):
@@ -137,6 +226,22 @@ class NotesApp(App):
 
     all_notes: list[notes.Note] = reactive(utils.get_all_notes())
 
+    def action_search_by_title(self) -> None:
+        self.run_worker(self._action_search_by_title())
+
+    async def _action_search_by_title(self) -> None:
+        result = await self.push_screen_wait(NotesSearchByName())
+        if result:
+            result()
+    
+    def action_search_by_time(self) -> None:
+        self.run_worker(self._action_search_by_time())
+
+    async def _action_search_by_time(self) -> None:
+        result = await self.push_screen_wait(NotesSearchByDate())
+        if result:
+            result()
+
     def compose(self) -> ComposeResult:
         self.widgets = []
         yield Header(show_clock=True)
@@ -147,7 +252,7 @@ class NotesApp(App):
 
     def action_toggle_dark(self) -> None:
         self.dark = not self.dark
-    
+
     def action_new_note(self) -> None:
         self.push_screen(EditNote(self, notes.Note(notes.NoteTimestamp.current_time(), "", ""), is_creating=True))
 
