@@ -1,10 +1,13 @@
 from textual.app import App, ComposeResult
-from textual.containers import ScrollableContainer
+from textual.containers import ScrollableContainer, Grid
 from textual.events import Event
-from textual.widgets import Button, Footer, Header, Static
+from textual.widgets import Button, Footer, Header, Static, Label, TextArea, Input
+from textual.command import DiscoveryHit, Hit, Hits, Provider, CommandPalette
+from textual.types import IgnoreReturnCallbackType
 from textual.widget import Widget
 from textual.reactive import reactive
 from textual.message import Message
+from textual.screen import ModalScreen
 
 import note as notes
 import utils
@@ -19,6 +22,44 @@ class NoteWidget__Title(Static):
     def compose(self) -> ComposeResult:
         return super().compose()
 
+class EditNote(ModalScreen):
+    is_creating: bool = False
+    note: notes.Note
+
+    def __init__(self, note_app, note: notes.Note, is_creating: bool = False, name: str | None = None, id: str | None = None, classes: str | None = None) -> None:
+        super().__init__(name, id, classes)
+        self.is_creating = is_creating
+        self.note = note
+        self.note_app = note_app
+    
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label("Создать заметку" if self.is_creating else "Изменить заметку", id="title"),
+            Label("Название:"),
+            Input(self.note.title, placeholder="Название", id="note_name"),
+            Label("Содержимое:"),
+            TextArea(self.note.body, id="note_body", tab_behavior="indent", show_line_numbers=True, soft_wrap=True),
+            Grid(
+                Button("Создать" if self.is_creating else "Сохранить", variant="primary", id="save"),
+                Button("Отмена", variant="error", id="cancel"),
+                id="dialog_buttons"
+            ),
+            id="dialog"
+        )
+    
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel":
+            self.note_app.pop_screen()
+        if event.button.id == "save":
+            self.note.title = self.query_one("#note_name", Input).value
+            self.note.body = self.query_one("#note_body", TextArea).text
+            if self.is_creating:
+                self.note.timestamp = notes.NoteTimestamp.current_time()
+            utils.write_note(self.note)
+            self.note_app.all_notes = utils.get_all_notes()
+            self.post_message(NotesApp.NotesUpdated())
+            self.note_app.pop_screen()
+
 class NoteWidget(Widget):
     note: notes.Note
 
@@ -30,15 +71,59 @@ class NoteWidget(Widget):
     def compose(self) -> ComposeResult:
         yield NoteWidget__Title(self.note)
         yield Static(classes="spacer")
-        yield Button("Редактировать", id=f"edit{self.note.note_id.hex}", variant="primary")
+        yield Button("Редактировать", id=f"edit_{self.note.note_id.hex}", variant="primary")
         yield Button("Удалить", id=f"delete_{self.note.note_id.hex}", variant="error")
     
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        # raise Exception(event.button.id)
         if event.button.id.startswith("delete_"):
             note_id = event.button.id.removeprefix("delete_")
             utils.delete_note(note_id)
+        if event.button.id.startswith("edit_"):
+            note_id = event.button.id.removeprefix("edit_")
+            for x in utils.get_all_notes():
+                if x.note_id.hex == note_id:
+                    self.note_app.push_screen(EditNote(self.note_app, x, is_creating=False))
+                    break
+            return
         self.post_message(NotesApp.NotesUpdated())
+
+class Commands(Provider):
+
+    @property
+    def commands(self) -> tuple[tuple[str, IgnoreReturnCallbackType, str], ...]:
+        """The system commands to reveal to the command palette."""
+        return (
+            (
+                "Изменить тему",
+                self.app.action_toggle_dark,
+                "Включить или выключить тёмный режим",
+            ),
+            (
+                "Выйти",
+                self.app.action_quit,
+                "Выходит из приложения",
+            )
+        )
+
+    async def discover(self) -> Hits:
+        for name, runnable, help_text in self.commands:
+            yield DiscoveryHit(
+                name,
+                runnable,
+                help=help_text,
+            )
+
+    async def search(self, query: str) -> Hits:
+        matcher = self.matcher(query)
+        for name, runnable, help_text in self.commands:
+            if (match := matcher.match(name)) > 0:
+                yield Hit(
+                    match,
+                    matcher.highlight(name),
+                    runnable,
+                    help=help_text,
+                )
+
 
 class NotesApp(App):
     class NotesUpdated(Message):
@@ -46,9 +131,9 @@ class NotesApp(App):
 
     CSS_PATH = "tui.tcss"
 
-    BINDINGS = [("ctrl+d", "toggle_dark", "Переключить тёмный режим"), ("ctrl+n", "new_note", "Создать новую заметку"), ("ctrl+c", "quit", "Выйти")]
+    COMMANDS = {Commands}
 
-    ENABLE_COMMAND_PALETTE = False
+    BINDINGS = [("ctrl+d", "toggle_dark", "Переключить тёмный режим"), ("ctrl+n", "new_note", "Создать новую заметку"), ("ctrl+c", "quit", "Выйти")]
 
     all_notes: list[notes.Note] = reactive(utils.get_all_notes())
 
@@ -64,7 +149,7 @@ class NotesApp(App):
         self.dark = not self.dark
     
     def action_new_note(self) -> None:
-        pass
+        self.push_screen(EditNote(self, notes.Note(notes.NoteTimestamp.current_time(), "", ""), is_creating=True))
 
     def on_notes_app_notes_updated(self, message):
         self.all_notes = utils.get_all_notes()

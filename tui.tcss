@@ -5,7 +5,7 @@
 
 .NoteWidget {
     margin: 1;
-    border: solid white;
+    border: solid $success;
     width: 100%;
     height: auto;
     layout: grid;
@@ -19,4 +19,34 @@
 
 .spacer {
     width: 1fr;
+}
+
+#dialog {
+    layout: vertical;
+    padding: 0 1;
+    border: thick $background 80%;
+    background: $surface;
+}
+
+#note_body {
+    width: 100%;
+    height: 5fr;
+}
+
+#dialog #title {
+    width: auto;
+    border: solid blue;
+    content-align: center middle;
+}
+
+#dialog_buttons {
+    align: center middle;
+    layout: horizontal;
+    height: 1fr;
+    margin: 1 0;
+}
+
+#dialog_buttons Button {
+    align: center bottom;
+    margin: 0 1;
 }

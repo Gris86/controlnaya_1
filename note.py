@@ -1,5 +1,6 @@
 import json
 import uuid
+from datetime import datetime
 
 class NoteTimestamp:
     year: int
@@ -24,6 +25,11 @@ class NoteTimestamp:
     def from_json(json_string: str):
         parsed_json = json.loads(json_string)
         return NoteTimestamp(*parsed_json)
+    
+    @staticmethod
+    def current_time():
+        today = datetime.now()
+        return NoteTimestamp(today.year, today.month, today.day, today.hour, today.minute, today.second)
 
 class Note:
     timestamp: NoteTimestamp
